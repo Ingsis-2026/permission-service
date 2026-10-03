@@ -36,6 +36,11 @@ class Permission(
 )
 
 interface PermissionRepository : JpaRepository<Permission, UUID> {
+    fun findBySnippetIdAndUserId(
+        snippetId: UUID,
+        userId: String,
+    ): Permission?
+
     fun existsBySnippetIdAndUserId(
         snippetId: UUID,
         userId: String,
