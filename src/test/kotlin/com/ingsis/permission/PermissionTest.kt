@@ -10,6 +10,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import java.util.UUID
 import kotlin.test.assertEquals
@@ -68,5 +69,33 @@ class PermissionTest(
     @Test
     fun `un usuario vacio es un 400`() {
         grant(UUID.randomUUID(), "").andExpect { status { isBadRequest() } }
+    }
+
+    private fun find(
+        snippetId: UUID,
+        userId: String,
+    ) = mockMvc.get("/permissions") {
+        param("snippetId", snippetId.toString())
+        param("userId", userId)
+    }
+
+    @Test
+    fun `se consulta el rol de un usuario sobre un snippet`() {
+        val snippetId = UUID.randomUUID()
+        grant(snippetId, "auth0|ana", role = "READ")
+        find(snippetId, "auth0|ana").andExpect {
+            status { isOk() }
+            jsonPath("$.snippetId") { value(snippetId.toString()) }
+            jsonPath("$.userId") { value("auth0|ana") }
+            jsonPath("$.role") { value("READ") }
+        }
+    }
+
+    @Test
+    fun `un usuario sin permisos sobre el snippet es un 404`() {
+        val snippetId = UUID.randomUUID()
+        grant(snippetId, "auth0|ana")
+        find(snippetId, "auth0|beto").andExpect { status { isNotFound() } }
+        find(UUID.randomUUID(), "auth0|ana").andExpect { status { isNotFound() } }
     }
 }
