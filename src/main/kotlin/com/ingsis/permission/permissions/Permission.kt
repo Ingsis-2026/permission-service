@@ -45,4 +45,11 @@ interface PermissionRepository : JpaRepository<Permission, UUID> {
         snippetId: UUID,
         userId: String,
     ): Boolean
+
+    fun findAllByUserId(userId: String): List<Permission>
+
+    fun findAllByUserIdAndRole(
+        userId: String,
+        role: Role,
+    ): List<Permission>
 }

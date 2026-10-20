@@ -98,4 +98,50 @@ class PermissionTest(
         find(snippetId, "auth0|beto").andExpect { status { isNotFound() } }
         find(UUID.randomUUID(), "auth0|ana").andExpect { status { isNotFound() } }
     }
+
+    private fun findByUser(
+        userId: String,
+        role: String? = null,
+    ) = mockMvc.get("/permissions/snippets") {
+        param("userId", userId)
+        role?.let { param("role", it) }
+    }
+
+    @Test
+    fun `se listan todos los permisos de un usuario`() {
+        val own = UUID.randomUUID()
+        val shared = UUID.randomUUID()
+        grant(own, "auth0|ana")
+        grant(shared, "auth0|ana", role = "READ")
+        grant(UUID.randomUUID(), "auth0|beto")
+
+        findByUser("auth0|ana").andExpect {
+            status { isOk() }
+            jsonPath("$.length()") { value(2) }
+            jsonPath("$[?(@.snippetId == '$own')].role") { value("OWNER") }
+            jsonPath("$[?(@.snippetId == '$shared')].role") { value("READ") }
+        }
+    }
+
+    @Test
+    fun `se listan solo los permisos de un rol`() {
+        val shared = UUID.randomUUID()
+        grant(UUID.randomUUID(), "auth0|ana")
+        grant(shared, "auth0|ana", role = "READ")
+
+        findByUser("auth0|ana", role = "READ").andExpect {
+            status { isOk() }
+            jsonPath("$.length()") { value(1) }
+            jsonPath("$[0].snippetId") { value(shared.toString()) }
+            jsonPath("$[0].role") { value("READ") }
+        }
+    }
+
+    @Test
+    fun `un usuario sin permisos tiene una lista vacia`() {
+        findByUser("auth0|carla").andExpect {
+            status { isOk() }
+            jsonPath("$.length()") { value(0) }
+        }
+    }
 }
