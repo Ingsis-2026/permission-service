@@ -10,6 +10,7 @@ import jakarta.persistence.Id
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 enum class Role { OWNER, READ }
@@ -52,4 +53,8 @@ interface PermissionRepository : JpaRepository<Permission, UUID> {
         userId: String,
         role: Role,
     ): List<Permission>
+
+    /** Los permisos de todos los usuarios sobre el snippet. Devuelve cuántos había. */
+    @Transactional
+    fun deleteAllBySnippetId(snippetId: UUID): Long
 }

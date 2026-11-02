@@ -3,6 +3,7 @@ package com.ingsis.permission.permissions
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import org.springframework.http.HttpStatus
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -58,6 +59,18 @@ class PermissionController(
     ): List<PermissionResponse> {
         val permissions = if (role == null) repository.findAllByUserId(userId) else repository.findAllByUserIdAndRole(userId, role)
         return permissions.map { it.toResponse() }
+    }
+
+    /**
+     * Se borró el snippet: nadie tiene más permisos sobre él. Es idempotente, así que un snippet
+     * sin permisos, o del que ya se borraron, también responde 204.
+     */
+    @DeleteMapping("/permissions")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun revokeAll(
+        @RequestParam snippetId: UUID,
+    ) {
+        repository.deleteAllBySnippetId(snippetId)
     }
 
     private fun Permission.toResponse() = PermissionResponse(snippetId, userId, role)
