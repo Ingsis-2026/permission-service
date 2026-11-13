@@ -10,6 +10,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import java.util.UUID
@@ -97,5 +98,80 @@ class PermissionTest(
         grant(snippetId, "auth0|ana")
         find(snippetId, "auth0|beto").andExpect { status { isNotFound() } }
         find(UUID.randomUUID(), "auth0|ana").andExpect { status { isNotFound() } }
+    }
+
+    private fun findByUser(
+        userId: String,
+        role: String? = null,
+    ) = mockMvc.get("/permissions/snippets") {
+        param("userId", userId)
+        role?.let { param("role", it) }
+    }
+
+    @Test
+    fun `se listan todos los permisos de un usuario`() {
+        val own = UUID.randomUUID()
+        val shared = UUID.randomUUID()
+        grant(own, "auth0|ana")
+        grant(shared, "auth0|ana", role = "READ")
+        grant(UUID.randomUUID(), "auth0|beto")
+
+        findByUser("auth0|ana").andExpect {
+            status { isOk() }
+            jsonPath("$.length()") { value(2) }
+            jsonPath("$[?(@.snippetId == '$own')].role") { value("OWNER") }
+            jsonPath("$[?(@.snippetId == '$shared')].role") { value("READ") }
+        }
+    }
+
+    @Test
+    fun `se listan solo los permisos de un rol`() {
+        val shared = UUID.randomUUID()
+        grant(UUID.randomUUID(), "auth0|ana")
+        grant(shared, "auth0|ana", role = "READ")
+
+        findByUser("auth0|ana", role = "READ").andExpect {
+            status { isOk() }
+            jsonPath("$.length()") { value(1) }
+            jsonPath("$[0].snippetId") { value(shared.toString()) }
+            jsonPath("$[0].role") { value("READ") }
+        }
+    }
+
+    @Test
+    fun `un usuario sin permisos tiene una lista vacia`() {
+        findByUser("auth0|carla").andExpect {
+            status { isOk() }
+            jsonPath("$.length()") { value(0) }
+        }
+    }
+
+    private fun revokeAll(snippetId: UUID) = mockMvc.delete("/permissions") { param("snippetId", snippetId.toString()) }
+
+    @Test
+    fun `al borrar un snippet se borran los permisos de todos sus usuarios y solo los suyos`() {
+        val deleted = UUID.randomUUID()
+        val other = UUID.randomUUID()
+        grant(deleted, "auth0|ana")
+        grant(deleted, "auth0|beto", role = "READ")
+        grant(other, "auth0|ana")
+
+        revokeAll(deleted).andExpect { status { isNoContent() } }
+
+        find(deleted, "auth0|ana").andExpect { status { isNotFound() } }
+        find(deleted, "auth0|beto").andExpect { status { isNotFound() } }
+        find(other, "auth0|ana").andExpect { status { isOk() } }
+    }
+
+    @Test
+    fun `borrar los permisos de un snippet que no tiene ninguno tambien es un 204`() {
+        revokeAll(UUID.randomUUID()).andExpect { status { isNoContent() } }
+    }
+
+    @Test
+    fun `borrar permisos sin decir de que snippet es un 400`() {
+        grant(UUID.randomUUID(), "auth0|ana")
+        mockMvc.delete("/permissions").andExpect { status { isBadRequest() } }
+        assertEquals(1, repository.count())
     }
 }
