@@ -1,7 +1,10 @@
 package com.ingsis.permission.permissions
 
+import com.ingsis.permission.observability.withLogContext
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -24,6 +27,11 @@ data class PermissionResponse(
     val role: Role,
 )
 
+/**
+ * Cada cambio de permisos queda en el log (INFO) con el snippet, el usuario y el rol en el MDC. Las consultas
+ * no: son la mayoría de los pedidos y no cambian nada. Un permiso que no existe es una respuesta esperada
+ * (alguien abre un snippet que no le compartieron), así que va en DEBUG.
+ */
 @RestController
 class PermissionController(
     private val repository: PermissionRepository,
@@ -32,12 +40,16 @@ class PermissionController(
     @ResponseStatus(HttpStatus.CREATED)
     fun grant(
         @Valid @RequestBody request: PermissionRequest,
-    ): PermissionResponse {
-        if (repository.existsBySnippetIdAndUserId(request.snippetId, request.userId)) {
-            throw PermissionAlreadyExistsException(request.snippetId, request.userId)
+    ): PermissionResponse =
+        withLogContext(SNIPPET_ID to request.snippetId, USER_ID to request.userId, "role" to request.role) {
+            if (repository.existsBySnippetIdAndUserId(request.snippetId, request.userId)) {
+                log.info("El usuario ya tenía un permiso sobre el snippet: no se cambia")
+                throw PermissionAlreadyExistsException(request.snippetId, request.userId)
+            }
+            val permission = repository.save(Permission(request.snippetId, request.userId, request.role))
+            log.info("Se otorgó un permiso")
+            permission.toResponse()
         }
-        return repository.save(Permission(request.snippetId, request.userId, request.role)).toResponse()
-    }
 
     /** El rol del usuario sobre el snippet, o 404 si no tiene ninguno. */
     @GetMapping("/permissions")
@@ -46,7 +58,10 @@ class PermissionController(
         @RequestParam userId: String,
     ): PermissionResponse =
         repository.findBySnippetIdAndUserId(snippetId, userId)?.toResponse()
-            ?: throw PermissionNotFoundException(snippetId, userId)
+            ?: withLogContext(SNIPPET_ID to snippetId, USER_ID to userId) {
+                log.debug("El usuario no tiene permisos sobre el snippet")
+                throw PermissionNotFoundException(snippetId, userId)
+            }
 
     /**
      * US5: los permisos de un usuario sobre todos sus snippets, para listar los que puede ver.
@@ -70,10 +85,17 @@ class PermissionController(
     fun revokeAll(
         @RequestParam snippetId: UUID,
     ) {
-        repository.deleteAllBySnippetId(snippetId)
+        val revoked = repository.deleteAllBySnippetId(snippetId)
+        withLogContext(SNIPPET_ID to snippetId, "revoked" to revoked) { log.info("Se revocaron los permisos del snippet") }
     }
 
     private fun Permission.toResponse() = PermissionResponse(snippetId, userId, role)
+
+    private companion object {
+        const val SNIPPET_ID = "snippetId"
+        const val USER_ID = "userId"
+        val log: Logger = LoggerFactory.getLogger(PermissionController::class.java)
+    }
 }
 
 class PermissionAlreadyExistsException(
