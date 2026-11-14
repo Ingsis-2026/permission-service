@@ -34,6 +34,7 @@ class RequestIdTest(
 
     private fun grant(role: String = "OWNER") =
         mockMvc.post("/permissions") {
+            with(asSnippetService())
             header(REQUEST_ID_HEADER, "abc-123")
             contentType = MediaType.APPLICATION_JSON
             content = """{"snippetId": "$snippetId", "userId": "auth0|ana", "role": "$role"}"""
@@ -66,7 +67,10 @@ class RequestIdTest(
     fun `al borrar un snippet queda en el log cuantos permisos se revocaron`(output: CapturedOutput) {
         grant()
 
-        mockMvc.delete("/permissions") { param("snippetId", snippetId.toString()) }
+        mockMvc.delete("/permissions") {
+            with(asSnippetService())
+            param("snippetId", snippetId.toString())
+        }
 
         assertTrue("revoked=1" in output.logLine("Se revocaron los permisos del snippet"))
     }
