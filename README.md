@@ -22,6 +22,13 @@ Parte de **Snippet Searcher** (Ingeniería de Sistemas 2026). Guarda quién pued
 |---|---|
 | `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | `localhost` / `5433` / `permission` / `permission` / `permission` |
 | `SERVER_PORT` | `8081` (en Docker, `8080`) |
+| `LOG_FORMAT` | Vacío: logs en texto, con el contexto entre corchetes (`[requestId=…, snippetId=…]`). La imagen de Docker trae `ecs`: un JSON por línea (Elastic Common Schema) con `service.name` y el contexto como campos. |
+
+## Logs
+
+Cada cambio de permisos (otorgar, un permiso repetido, revocar los de un snippet borrado) queda en el log en INFO, con `snippetId`, `userId`, `role` o `revoked` en el MDC. Las consultas no se loguean; un permiso que no existe va en DEBUG. Un error inesperado va en ERROR, con el stack trace.
+
+Todos los logs de un pedido llevan su `requestId`: el que manda snippet-service en `X-Request-Id`, que es el mismo de sus propios logs, o uno nuevo si no vino. Vuelve en la respuesta.
 
 ## Calidad y CI/CD
 
