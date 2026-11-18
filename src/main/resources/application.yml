@@ -9,9 +9,23 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: ${DDL_AUTO:update}
+  # Solo lo llama snippet-service, con un access token machine-to-machine de Auth0 para la API interna
+  # (no la de los usuarios: un token del navegador no sirve acá). Spring valida la firma con las claves
+  # públicas del tenant, el issuer, el vencimiento y la audience. Ninguno de los dos valores es secreto.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://${AUTH0_DOMAIN:dev-2fvmkxju8g70kqvs.us.auth0.com}/
+          audiences: ${AUTH0_INTERNAL_AUDIENCE:https://snippet-searcher/internal}
 
 server:
   port: ${SERVER_PORT:8081}
+
+# En false no pide token. Es solo para el docker compose de tu máquina, donde no suele estar la
+# aplicación machine-to-machine de Auth0; en las VMs queda en true.
+auth:
+  enabled: ${AUTH_ENABLED:true}
 
 management:
   endpoints:

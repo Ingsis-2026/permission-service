@@ -31,6 +31,7 @@ class PermissionTest(
         userId: String,
         role: String = "OWNER",
     ) = mockMvc.post("/permissions") {
+        with(asSnippetService())
         contentType = MediaType.APPLICATION_JSON
         content = """{"snippetId": "$snippetId", "userId": "$userId", "role": "$role"}"""
     }
@@ -76,6 +77,7 @@ class PermissionTest(
         snippetId: UUID,
         userId: String,
     ) = mockMvc.get("/permissions") {
+        with(asSnippetService())
         param("snippetId", snippetId.toString())
         param("userId", userId)
     }
@@ -104,6 +106,7 @@ class PermissionTest(
         userId: String,
         role: String? = null,
     ) = mockMvc.get("/permissions/snippets") {
+        with(asSnippetService())
         param("userId", userId)
         role?.let { param("role", it) }
     }
@@ -146,7 +149,11 @@ class PermissionTest(
         }
     }
 
-    private fun revokeAll(snippetId: UUID) = mockMvc.delete("/permissions") { param("snippetId", snippetId.toString()) }
+    private fun revokeAll(snippetId: UUID) =
+        mockMvc.delete("/permissions") {
+            with(asSnippetService())
+            param("snippetId", snippetId.toString())
+        }
 
     @Test
     fun `al borrar un snippet se borran los permisos de todos sus usuarios y solo los suyos`() {
@@ -171,7 +178,7 @@ class PermissionTest(
     @Test
     fun `borrar permisos sin decir de que snippet es un 400`() {
         grant(UUID.randomUUID(), "auth0|ana")
-        mockMvc.delete("/permissions").andExpect { status { isBadRequest() } }
+        mockMvc.delete("/permissions") { with(asSnippetService()) }.andExpect { status { isBadRequest() } }
         assertEquals(1, repository.count())
     }
 }
